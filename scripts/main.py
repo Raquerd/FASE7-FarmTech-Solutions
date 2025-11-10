@@ -1,9 +1,11 @@
 import pandas as pd, json, os, requests, oracledb, time, streamlit as st
 from datetime import datetime
 
+# Conexão banco de dados Oracle
 conn = oracledb.connect(user='rm562274', password='090402', dsn='oracle.fiap.com.br:1521/ORCL') 
 cursor = conn.cursor()
 
+# Conexões API (Open Weather Map)
 API_KEY = '7621dd8760f87d562a4e5a21bffbdc36'
 cidade = 'Sao Paulo'
 
@@ -23,6 +25,7 @@ def previsao_tempo(url):
         print("Sem chuva: bomba ON (se necessário)")
     return clima
 
+# Inserção de dados manual
 def inserir_dado_manual(umidade, ph, fosforo, potassio, bomba):
     time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
@@ -98,3 +101,53 @@ if menu_option_action == menu["1"]:
 
             except Exception as e:
                 st.error(f"❌ Erro ao processar o arquivo ou inserir dados: {e}")
+
+elif menu_option_action == menu["2"]:
+    col1, col2 = st.columns(2)
+    with col1:
+        dt_inicial = st.text_input('Digite a data inicial: ', key="dt_init")
+
+    with col2:
+        dt_final = st.text_input('Digite a data final: ', key="dt_fin")
+    
+    if dt_inicial != None or dt_final != None:
+
+        df_extraido = pd.read_sql(f'''
+            SELECT * FROM SENSORES
+                WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'
+        ''', conn)
+        st.subheader("Resultados da extração")
+        st.dataframe(df_extraido)
+        
+        if not df_extraido.empty:
+            st.download_button(
+                label="Baixar dados em CSV",
+                data=df_extraido.to_csv(index=False, sep=","),
+                file_name=f"df_extraido_{dt_inicial}_a_{dt_final}.csv",
+                mime="text/csv",
+                key="Extrair"
+            )
+
+elif menu_option_action == menu["3"]:
+    menu_att = {"1":"Atualização por lote (DATA)", "2":"Atualização por ID"}
+    menu_att_action = st.radio("SELECIONE A AÇÃO DE ATUALIZAÇÃO NECESSÁRIA",
+            list(menu_att.values()),
+            key="menu_atualizacao")
+    
+    if menu_att_action == menu_att["1"]:
+        col1, col2 = st.columns(2)
+        with col1:
+            dt_inicial = st.text_input("Digite a data inicial de edição: ", key="dt_init_att")
+        with col2:
+            dt_final = st.text_input("Digite a data inicial de edição: ", key="dt_fin_att")
+
+        df_att = pd.read_sql(f"SELECT * FROM SENSORES WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'", conn)
+        
+
+    if menu_att_action == menu_att["2"]:
+        id_input_att = st.text_input("Digite o ID procurado: ", key="id_att")
+        df_att = pd.read_sql(f"SELECT * FROM SENSORES WHERE ID = '{id_input_att}'", conn)
+
+    st.dataframe(df_att)
+         
+    # st.text_input("Digite o ID que deseja alterar: ")
