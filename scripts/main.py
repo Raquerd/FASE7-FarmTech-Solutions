@@ -135,6 +135,8 @@ elif menu_option_action == menu["3"]:
     menu_att_action = st.radio("SELECIONE A AÇÃO DE ATUALIZAÇÃO NECESSÁRIA",
             list(menu_att.values()),
             key="menu_atualizacao")
+    dt_inicial = None
+    dt_final = None
     
     if menu_att_action == menu_att["1"]:
         col1, col2 = st.columns(2)
@@ -198,51 +200,43 @@ elif menu_option_action == menu["3"]:
                 )
                 st.success(f"✅ Sucesso! {len(df_att)} registro(s) foram atualizados no banco de dados.")
                 conn.commit()
-                # # 🚨 PASSO CRUCIAL: Recuperar os valores do session_state
-                # novos_valores = {}
-                # for campo in campos_selecionados:
-                #     # Usa a chave dinâmica para ler o valor exato que o usuário digitou
-                #     novos_valores[campo] = st.session_state.get(f'novo_{campo}')S
 
-                # if todos_os_inputs_preenchidos(novos_valores):
-                    
-                #     # Conexão e cursor para a ATUALIZAÇÃO
-                #     # 1. Estruturar a query SET dinamicamente:
-                #     set_clause = ", ".join([f"{coluna} = ?" for coluna in novos_valores.keys()])
-                #     # Onde a chave primária é 'TIME'
-                #     sql_update = f"UPDATE SENSORES SET {set_clause} WHERE TIME = ?"
-                    
-                #     # 2. Preparar os parâmetros para o executemany
-                #     parametros_em_lote = []
-                #     new_values_list = list(novos_valores.values())
-
-                #     # Itera sobre a chave primária (TIME) de TODOS os registros extraídos
-                #     for pk_time in df_att['TIME']: 
-                #         # Cria a tupla de (valor1, valor2, ..., pk_time)
-                #         param_tuple = tuple(new_values_list) + (pk_time,)
-                #         parametros_em_lote.append(param_tuple)
-                        
-                #     # 3. Executar o update em lote
-                #     try:
-                #         cursor.executemany(sql_update, parametros_em_lote) 
-                #         conn.commit()
-                #         st.success(f"✅ Sucesso! {len(df_att)} registro(s) foram atualizados no banco de dados.")
-
-                #         # Recarrega os dados para mostrar o resultado
-                #         df_reloaded = pd.read_sql(f"SELECT * FROM SENSORES WHERE TIME IN ({','.join(['?'] * len(df_att))})", 
-                #                                     conn, 
-                #                                     params=df_att['TIME'].tolist())
-                #         st.subheader("Registros Atualizados")
-                #         st.dataframe(df_reloaded)
-
-                #     except Exception as e:
-                #         st.error(f"❌ Erro ao executar a atualização: {e}")
-                #     finally:
-                #         conn.close()
-                        
-                # else:
-                #     st.warning("Preencha todos os campos selecionados antes de atualizar.")
-            
-        # else:
-        #     st.info("Selecione um ou mais campos acima para definir os novos valores.")
         st.dataframe(df_att)
+elif menu_option_action == menu["4"]:
+    menu_del = {"1":"Deletar dados por lote (DATA)", "2":"Deletar dados por ID"}
+    menu_del_action = st.radio("SELECIONE A AÇÃO NECESSÁRIA",
+            list(menu_del.values()),
+            key="menu_atualizacao")
+    dt_inicial = None
+    dt_final = None
+    
+    if menu_del_action == menu_del["1"]:
+        col1, col2 = st.columns(2)
+        with col1:
+            dt_inicial = st.text_input("Digite a data inicial de edição: ", key="dt_init_del")
+        with col2:
+            dt_final = st.text_input("Digite a data inicial de edição: ", key="dt_fin_del")
+        df_del = pd.read_sql(f"SELECT * FROM SENSORES WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'", conn)
+
+    if menu_del_action == menu_del["2"]:
+        id_input_del = st.text_input("Digite o ID procurado: ", key="id_del")
+        df_del = pd.read_sql(f"SELECT * FROM SENSORES WHERE ID = '{id_input_del}'", conn)
+    
+    alerta_placeholder = st.empty()
+    st.error("⚠️ ATENÇÃO: Confirmação Necessária!")
+    st.write("Tem certeza que deseja prosseguir com esta ação, os dados serão deletados do banco para sempre?")
+
+    if st.button("Deletar Dados"):
+        st.success("Ação confirmada! Processando...")
+        col_sim, col_nao = st.columns([1, 4])
+        if menu_del_action == menu_del["1"]:
+            cursor.execute(f"DELETE FROM SENSORES WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'") 
+        
+        if menu_del_action == menu_del["2"]:
+            cursor.execute(f"DELETE FROM SENSORES WHERE ID = '{id_input_del}'")
+        conn.commit()
+
+        st.success("Exclusão realizada com sucesso!")
+        alerta_placeholder.empty()
+
+    st.dataframe(df_del)
