@@ -129,6 +129,8 @@ elif menu_option_action == menu["2"]:
             )
 
 elif menu_option_action == menu["3"]:
+    def todos_os_inputs_preenchidos(dicionario):
+        return bool(dicionario) and all(v is not None and v != '' for v in dicionario.values())
     menu_att = {"1":"Atualização por lote (DATA)", "2":"Atualização por ID"}
     menu_att_action = st.radio("SELECIONE A AÇÃO DE ATUALIZAÇÃO NECESSÁRIA",
             list(menu_att.values()),
@@ -141,13 +143,106 @@ elif menu_option_action == menu["3"]:
         with col2:
             dt_final = st.text_input("Digite a data inicial de edição: ", key="dt_fin_att")
 
-        df_att = pd.read_sql(f"SELECT * FROM SENSORES WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'", conn)
-        
+        df_att = pd.read_sql(f"SELECT * FROM SENSORES WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'", conn)        
 
     if menu_att_action == menu_att["2"]:
         id_input_att = st.text_input("Digite o ID procurado: ", key="id_att")
         df_att = pd.read_sql(f"SELECT * FROM SENSORES WHERE ID = '{id_input_att}'", conn)
 
-    st.dataframe(df_att)
-         
-    # st.text_input("Digite o ID que deseja alterar: ")
+    if df_att.shape[0] > 0:
+        st.subheader(f"Registros encontrados para edição ({len(df_att)}):")
+        # st.dataframe(df_att) # Exibe o DataFrame encontrado
+
+        COLUNAS_ATUALIZAVEIS = ['UMIDADE', 'PH', 'FOSFORO', 'POTASSIO', 'BOMBA']
+
+        # 1. Seleção dos Campos para Atualizar
+        campos_selecionados = st.multiselect(
+            'Selecione os campos que deseja atualizar:',
+            options=COLUNAS_ATUALIZAVEIS,
+            key='campos_atualizacao'
+        )
+        
+        # 2. Criação dos Inputs Dinâmicos (SÓ PARA RENDERIZAR E ARMAZENAR NO SESSION_STATE)
+        if campos_selecionados:
+            st.subheader("Novos Valores (aplicados a TODOS os registros acima)")
+            
+            for campo in campos_selecionados:
+                widget_key = f'novo_{campo}'
+                
+                # ... (Lógica para renderizar st.number_input, st.radio, etc. para cada campo) ...
+                if campo in ['POTASSIO', "FOSFORO"]:
+                    val = st.radio(f"Novo valor para {campo}:", ['1', '0'], key=widget_key, index=0)
+                    if campo == "POTASSIO":
+                        df_att["POTASSIO"] = val
+                    elif campo == "FOSFORO":
+                        df_att["FOSFORO"] = val
+                elif campo == "UMIDADE":
+                    val = st.number_input(f"Novo valor para {campo}:", key=widget_key, min_value=10, value=0)
+                    df_att["UMIDADE"] = val
+                elif campo == 'PH':
+                    val = st.number_input(f"Novo valor para {campo}:", key=widget_key, min_value=0.0, max_value=14.0, step=0.1, value=7.0)
+                    df_att["PH"] = val
+                elif campo == 'BOMBA':
+                    val = st.radio(f"Novo valor para {campo}:", ['ON', 'OFF'], key=widget_key, index=0)
+                    df_att["BOMBA"] = val
+                # else: 
+                #     val = st.text_input(f"Novo valor para {campo}:", key=widget_key)
+        
+            # --- 3. Execução da Atualização (Ação Principal) ---
+            if st.button("Executar Atualização"):
+                sql_update_correto = "UPDATE SENSORES SET UMIDADE = :1, PH = :2, FOSFORO = :3, POTASSIO = :4, BOMBA = :5 WHERE ID = :6"
+
+                cursor.executemany(
+                    sql_update_correto, 
+                    df_att[['UMIDADE', 'PH', 'FOSFORO', 'POTASSIO', 'BOMBA', 'ID']].to_numpy().tolist()
+                )
+                st.success(f"✅ Sucesso! {len(df_att)} registro(s) foram atualizados no banco de dados.")
+                conn.commit()
+                # # 🚨 PASSO CRUCIAL: Recuperar os valores do session_state
+                # novos_valores = {}
+                # for campo in campos_selecionados:
+                #     # Usa a chave dinâmica para ler o valor exato que o usuário digitou
+                #     novos_valores[campo] = st.session_state.get(f'novo_{campo}')S
+
+                # if todos_os_inputs_preenchidos(novos_valores):
+                    
+                #     # Conexão e cursor para a ATUALIZAÇÃO
+                #     # 1. Estruturar a query SET dinamicamente:
+                #     set_clause = ", ".join([f"{coluna} = ?" for coluna in novos_valores.keys()])
+                #     # Onde a chave primária é 'TIME'
+                #     sql_update = f"UPDATE SENSORES SET {set_clause} WHERE TIME = ?"
+                    
+                #     # 2. Preparar os parâmetros para o executemany
+                #     parametros_em_lote = []
+                #     new_values_list = list(novos_valores.values())
+
+                #     # Itera sobre a chave primária (TIME) de TODOS os registros extraídos
+                #     for pk_time in df_att['TIME']: 
+                #         # Cria a tupla de (valor1, valor2, ..., pk_time)
+                #         param_tuple = tuple(new_values_list) + (pk_time,)
+                #         parametros_em_lote.append(param_tuple)
+                        
+                #     # 3. Executar o update em lote
+                #     try:
+                #         cursor.executemany(sql_update, parametros_em_lote) 
+                #         conn.commit()
+                #         st.success(f"✅ Sucesso! {len(df_att)} registro(s) foram atualizados no banco de dados.")
+
+                #         # Recarrega os dados para mostrar o resultado
+                #         df_reloaded = pd.read_sql(f"SELECT * FROM SENSORES WHERE TIME IN ({','.join(['?'] * len(df_att))})", 
+                #                                     conn, 
+                #                                     params=df_att['TIME'].tolist())
+                #         st.subheader("Registros Atualizados")
+                #         st.dataframe(df_reloaded)
+
+                #     except Exception as e:
+                #         st.error(f"❌ Erro ao executar a atualização: {e}")
+                #     finally:
+                #         conn.close()
+                        
+                # else:
+                #     st.warning("Preencha todos os campos selecionados antes de atualizar.")
+            
+        # else:
+        #     st.info("Selecione um ou mais campos acima para definir os novos valores.")
+        st.dataframe(df_att)
