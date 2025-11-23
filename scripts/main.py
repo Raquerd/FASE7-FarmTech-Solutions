@@ -27,34 +27,34 @@ def previsao_tempo(url):
 
 # Inserção de dados manual
 def inserir_dado_manual(umidade, ph, fosforo, potassio, bomba):
-    time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    DATA_LEITURA = datetime.datetime.now().strfDATA_LEITURA('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
-    INSERT INTO sensores (time, umidade, ph, fosforo, potassio, bomba)
+    INSERT INTO TBL_SENSORES (DATA_LEITURA, umidade, ph, fosforo, potassio, bomba)
     VALUES (:1, :2, :3, :4, :5, :6)
-    ''', (time, umidade, ph, fosforo, potassio, bomba))
+    ''', (DATA_LEITURA, umidade, ph, fosforo, potassio, bomba))
     conn.commit()
 
 # Consulta
 def listar_dados(min: str | None = ..., date_options: bool = False):
     if date_options == True:
-        dataframe = pd.read_sql(f"SELECT * FROM sensores where time like '{min}%'", conn)
+        dataframe = pd.read_sql(f"SELECT * FROM TBL_SENSORES where TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') like '{min}%'", conn)
     else:
-        dataframe = pd.read_sql('SELECT * FROM sensores', conn)
+        dataframe = pd.read_sql('SELECT * FROM TBL_SENSORES', conn)
     return dataframe
 
 # Atualizar dado
 def atualizar_dado_manual(id, campo, valor):
     cursor.execute(f'''
-    UPDATE sensores SET {campo} = {valor} WHERE id = {id}
+    UPDATE TBL_SENSORES SET {campo} = {valor} WHERE id = {id}
     ''')
     conn.commit()
 
 # Remover dado
 def deletar_dado(id):
-    cursor.execute('DELETE FROM sensores WHERE id = :1', (id,))
+    cursor.execute('DELETE FROM TBL_SENSORES WHERE id = :1', (id,))
     conn.commit()
 
-st.set_page_config(layout="wide", page_title="Controle de Sensores Agrícolas")
+st.set_page_config(layout="wide", page_title="Controle de TBL_SENSORES Agrícolas")
 st.sidebar.title("Menu de opções")
 menu = {
     "1": "Inserir dados",
@@ -88,11 +88,11 @@ if menu_option_action == menu["1"]:
                     cursor = conn.cursor()
                     
                     # Usa o método robusto (.to_numpy().tolist()) para o executemany
-                    dados_para_insercao = df_dados_importados[['TIME', 'UMIDADE', 'PH', 'FOSFORO', 'POTASSIO', 'BOMBA']].to_numpy().tolist()
+                    dados_para_insercao = df_dados_importados[['DATA_LEITURA', 'TEMPERATURA', 'UMIDADE', 'PH', 'FOSFORO', 'POTASSIO', 'BOMBA']].to_numpy().tolist()
 
                     cursor.executemany('''
-                        INSERT INTO SENSORES (TIME, UMIDADE, PH, FOSFORO, POTASSIO, BOMBA)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO TBL_SENSORES (DATA_LEITURA, TEMPERATURA, UMIDADE, PH, FOSFORO, POTASSIO, BOMBA)
+                        VALUES (TO_DATE(:1, 'YYYY-MM-DD HH24:MI:SS'), :2, :3, :4, :5, :6, :7)
                     ''', dados_para_insercao) # Usando '?' para sqlite3 por segurança
 
                     conn.commit()
@@ -113,8 +113,8 @@ elif menu_option_action == menu["2"]:
     if dt_inicial != None or dt_final != None:
 
         df_extraido = pd.read_sql(f'''
-            SELECT * FROM SENSORES
-                WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'
+            SELECT * FROM TBL_SENSORES
+                WHERE TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') >= '{dt_inicial}' AND TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') <= '{dt_final}'
         ''', conn)
         st.subheader("Resultados da extração")
         st.dataframe(df_extraido)
@@ -145,17 +145,17 @@ elif menu_option_action == menu["3"]:
         with col2:
             dt_final = st.text_input("Digite a data inicial de edição: ", key="dt_fin_att")
 
-        df_att = pd.read_sql(f"SELECT * FROM SENSORES WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'", conn)        
+        df_att = pd.read_sql(f"SELECT * FROM TBL_SENSORES WHERE TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') >= '{dt_inicial}' AND TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') <= '{dt_final}'", conn)        
 
     if menu_att_action == menu_att["2"]:
         id_input_att = st.text_input("Digite o ID procurado: ", key="id_att")
-        df_att = pd.read_sql(f"SELECT * FROM SENSORES WHERE ID = '{id_input_att}'", conn)
+        df_att = pd.read_sql(f"SELECT * FROM TBL_SENSORES WHERE ID = '{id_input_att}'", conn)
 
     if df_att.shape[0] > 0:
         st.subheader(f"Registros encontrados para edição ({len(df_att)}):")
         # st.dataframe(df_att) # Exibe o DataFrame encontrado
 
-        COLUNAS_ATUALIZAVEIS = ['UMIDADE', 'PH', 'FOSFORO', 'POTASSIO', 'BOMBA']
+        COLUNAS_ATUALIZAVEIS = ['TEMPERATURA', 'UMIDADE', 'PH', 'FOSFORO', 'POTASSIO', 'BOMBA']
 
         # 1. Seleção dos Campos para Atualizar
         campos_selecionados = st.multiselect(
@@ -173,30 +173,36 @@ elif menu_option_action == menu["3"]:
                 
                 # ... (Lógica para renderizar st.number_input, st.radio, etc. para cada campo) ...
                 if campo in ['POTASSIO', "FOSFORO"]:
-                    val = st.radio(f"Novo valor para {campo}:", ['1', '0'], key=widget_key, index=0)
+                    val = st.radio(f"Novo valor para {campo}:", [1, 0], key=widget_key, index=0)
                     if campo == "POTASSIO":
                         df_att["POTASSIO"] = val
                     elif campo == "FOSFORO":
                         df_att["FOSFORO"] = val
                 elif campo == "UMIDADE":
-                    val = st.number_input(f"Novo valor para {campo}:", key=widget_key, min_value=10, value=0)
+                    val = st.number_input(f"Novo valor para {campo}:", key=widget_key, min_value=10, value=30)
                     df_att["UMIDADE"] = val
+                elif campo == "TEMPERATURA":
+                    val = st.number_input(f"Novo valor para {campo}:", key=widget_key, min_value=0.0, max_value=40.0, value=25.0)
+                    df_att["TEMPERATURA"] = val
                 elif campo == 'PH':
                     val = st.number_input(f"Novo valor para {campo}:", key=widget_key, min_value=0.0, max_value=14.0, step=0.1, value=7.0)
                     df_att["PH"] = val
                 elif campo == 'BOMBA':
                     val = st.radio(f"Novo valor para {campo}:", ['ON', 'OFF'], key=widget_key, index=0)
                     df_att["BOMBA"] = val
+
+                    val = 1 if val == 'ON' else 0 
+                    df_att["BOMBA"] = val
                 # else: 
                 #     val = st.text_input(f"Novo valor para {campo}:", key=widget_key)
         
             # --- 3. Execução da Atualização (Ação Principal) ---
             if st.button("Executar Atualização"):
-                sql_update_correto = "UPDATE SENSORES SET UMIDADE = :1, PH = :2, FOSFORO = :3, POTASSIO = :4, BOMBA = :5 WHERE ID = :6"
+                sql_update_correto = "UPDATE TBL_SENSORES SET TEMPERATURA = :1, UMIDADE = :2, PH = :3, FOSFORO = :4, POTASSIO = :5, BOMBA = :6 WHERE ID = :7"
 
                 cursor.executemany(
                     sql_update_correto, 
-                    df_att[['UMIDADE', 'PH', 'FOSFORO', 'POTASSIO', 'BOMBA', 'ID']].to_numpy().tolist()
+                    df_att[['TEMPERATURA', 'UMIDADE', 'PH', 'FOSFORO', 'POTASSIO', 'BOMBA', 'ID']].to_numpy().tolist()
                 )
                 st.success(f"✅ Sucesso! {len(df_att)} registro(s) foram atualizados no banco de dados.")
                 conn.commit()
@@ -216,11 +222,11 @@ elif menu_option_action == menu["4"]:
             dt_inicial = st.text_input("Digite a data inicial de edição: ", key="dt_init_del")
         with col2:
             dt_final = st.text_input("Digite a data inicial de edição: ", key="dt_fin_del")
-        df_del = pd.read_sql(f"SELECT * FROM SENSORES WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'", conn)
+        df_del = pd.read_sql(f"SELECT * FROM TBL_SENSORES WHERE TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') >= '{dt_inicial}' AND TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') <= '{dt_final}'", conn)
 
     if menu_del_action == menu_del["2"]:
         id_input_del = st.text_input("Digite o ID procurado: ", key="id_del")
-        df_del = pd.read_sql(f"SELECT * FROM SENSORES WHERE ID = '{id_input_del}'", conn)
+        df_del = pd.read_sql(f"SELECT * FROM TBL_SENSORES WHERE ID = '{id_input_del}'", conn)
     
     alerta_placeholder = st.empty()
     st.error("⚠️ ATENÇÃO: Confirmação Necessária!")
@@ -230,10 +236,10 @@ elif menu_option_action == menu["4"]:
         st.success("Ação confirmada! Processando...")
         col_sim, col_nao = st.columns([1, 4])
         if menu_del_action == menu_del["1"]:
-            cursor.execute(f"DELETE FROM SENSORES WHERE TIME >= '{dt_inicial}' AND TIME <= '{dt_final}'") 
+            cursor.execute(f"DELETE FROM TBL_SENSORES WHERE TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') >= '{dt_inicial}' AND TO_CHAR(DATA_LEITURA, 'YYYY-MM-DD') <= '{dt_final}'") 
         
         if menu_del_action == menu_del["2"]:
-            cursor.execute(f"DELETE FROM SENSORES WHERE ID = '{id_input_del}'")
+            cursor.execute(f"DELETE FROM TBL_SENSORES WHERE ID = '{id_input_del}'")
         conn.commit()
 
         st.success("Exclusão realizada com sucesso!")
