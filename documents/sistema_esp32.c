@@ -2,6 +2,8 @@
 #include <DHT.h>               // Biblioteca sensor DHT22
 #include <Wire.h>              // Biblioteca I2C
 #include <LiquidCrystal_I2C.h> // Biblioteca do LCD I2C
+#include <WiFi.h>
+#include <HTTPClient.h>
 
 // ===== Definição dos pinos =====
 #define PINO_FOSFORO 32   
@@ -10,6 +12,12 @@
 #define PINO_DHT 4        
 #define PINO_RELE 27      
 #define PINO_LED 15       
+
+// ===== Configurações de Rede =====
+const char* ssid = "NOME_DA_SUA_WIFI";
+const char* password = "SENHA_DA_SUA_WIFI";
+
+String serverName = "http://192.168.0.5:5000/api/dados";
 
 // ===== Inicialização do DHT22 =====
 #define DHTTYPE DHT22
@@ -59,6 +67,12 @@ void loop() {
   processarLogicaIrrigacao();
   exibirNoSerial();
   exibirNoLCD();
+
+  if(WiFi.status() == WL_CONNECTED){
+    enviarDadosAPI();
+  } else {
+    Serial.println("WiFi desconectado!");
+  }
 
   delay(3000);  // Tempo de ciclo completo
 }
@@ -150,6 +164,35 @@ void exibirNoLCD() {
   lcd.print(potassioPresente ? "OK" : "Nao");
 
   delay(1000);
+}
+
+// ===== Nova Função para Enviar JSON =====
+void enviarDadosAPI() {
+  HTTPClient http;
+  http.begin(serverName);
+  http.addHeader("Content-Type", "application/json");
+
+  // Montando o JSON manualmente
+  String json = "{";
+  json += "\"umidade\":" + String(umidade) + ",";
+  json += "\"temperatura\":" + String(temperatura) + ",";
+  json += "\"ph\":" + String(ph) + ",";
+  json += "\"fosforo\":" + String(fosforoPresente ? "true" : "false") + ",";
+  json += "\"potassio\":" + String(potassioPresente ? "true" : "false") + ",";
+  json += "\"bomba\":" + String(bombaLigada ? "true" : "false");
+  json += "}";
+
+  int httpResponseCode = http.POST(json);
+
+  if (httpResponseCode > 0) {
+    String response = http.getString();
+    Serial.println("Código HTTP: " + String(httpResponseCode));
+    Serial.println("Resposta da API: " + response);
+  } else {
+    Serial.print("Erro no envio do POST: ");
+    Serial.println(httpResponseCode);
+  }
+  http.end();
 }
 
 // ==================================
