@@ -30,7 +30,7 @@ def receber_dados():
     if conn:
         cursor = conn.cursor()
         sql = """
-            INSERT INTO SENSORES (UMIDADE, TEMPERATURA, PH, FOSFORO, POTASSIO, BOMBA_LIGADA)
+            INSERT INTO SENSORES (UMIDADE, TEMPERATURA, PH, FOSFORO, POTASSIO, BOMBA)
             VALUES (:1, :2, :3, :4, :5, :6)
         """
         try:
