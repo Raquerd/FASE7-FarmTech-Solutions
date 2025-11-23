@@ -1,4 +1,8 @@
 import oracledb
+import joblib
+import alertas
+import os
+from datetime import datetime
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -10,21 +14,32 @@ DB_DSN = "oracle.fiap.com.br:1521/ORCL"
 
 def get_db_connection():
     try:
-        connection = oracledb.connect(user=DB_USER, password=DB_PASS, dsn=DB_DSN)
+        connection = oracledb.connect(user="rm562274", password="090402", dsn="oracle.fiap.com.br:1521/ORCL")
         return connection
     except oracledb.Error as e:
         print(f"Erro ao conectar no Oracle: {e}")
         return None
 
-# --- ROTA PARA RECEBER DADOS DO ESP32 ---
+caminho_modelo = rf'C:\Users\Davi\Documents\Projetos\FIAP\FASE 7\Capitulo 1\documents\modelo_anomalia_sensores.pkl'
+
+try:
+    modelo_anomalia = joblib.load(caminho_modelo)
+except FileNotFoundError:
+    print(f"ERRO: Não encontrei o arquivo {caminho_modelo}")
+
+    modelo_anomalia = None 
+
 @app.route('/api/dados', methods=['POST'])
 def receber_dados():
+    if modelo_anomalia is None:
+        return jsonify({"erro": "Modelo ML não carregado no servidor"}), 500
+
     data = request.json
     
     if not data:
         return jsonify({"erro": "Nenhum dado recebido"}), 400
     
-    print(f"Recebido: {data}") # Log no terminal
+    print(f"Recebido: {data}") 
     
     conn = get_db_connection()
     if conn:
@@ -34,8 +49,6 @@ def receber_dados():
             VALUES (:1, :2, :3, :4, :5, :6)
         """
         try:
-            # Mapeando os dados do JSON para o SQL
-            # O ESP32 enviará true/false, convertemos para 1/0 aqui
             valores = (
                 data.get('umidade'),
                 data.get('temperatura'),
@@ -45,6 +58,26 @@ def receber_dados():
                 1 if data.get('bomba') else 0
             )
             
+            # Validação para o modelo ML
+            dados_sensores = [[
+                data.get('umidade', 0), 
+                data.get('temperatura', 0),
+                data.get('ph', 0)
+            ]]
+            
+            resultado = modelo_anomalia.predict(dados_sensores)[0]
+
+            if resultado == -1:
+                print(f"⚠️ ALERTA: Leitura estranha detectada! {dados_sensores}")
+                mensagem = f'''
+                ⚠️ ALERTA FAZENDA:
+                Anomalia detectada nos sensores!
+                Data: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+                Dados: Umidade: {dados_sensores[0][0]}, Temp: {dados_sensores[0][1]}, PH: {dados_sensores[0][2]}
+                '''
+                # CORREÇÃO AQUI: Passando a variável mensagem
+                alertas.enviar_alerta_sns(mensagem)
+
             cursor.execute(sql, valores)
             conn.commit()
             print("Dados salvos no Oracle com sucesso!")
@@ -52,6 +85,9 @@ def receber_dados():
             
         except oracledb.Error as e:
             print(f"Erro ao inserir: {e}")
+            return jsonify({"erro": str(e)}), 500
+        except Exception as e:
+            print(f"Erro genérico: {e}")
             return jsonify({"erro": str(e)}), 500
         finally:
             cursor.close()
