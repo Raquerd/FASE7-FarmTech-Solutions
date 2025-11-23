@@ -74,7 +74,7 @@ void loop() {
     Serial.println("WiFi desconectado!");
   }
 
-  delay(3000);  // Tempo de ciclo completo
+  delay(600000);  // Tempo de ciclo completo
 }
 
 // ==================================
