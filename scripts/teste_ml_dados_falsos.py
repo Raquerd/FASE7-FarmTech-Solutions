@@ -6,7 +6,7 @@ import joblib
 import os
 
 # --- CONFIGURAÇÃO ---
-CAMINHO_MODELO = r'C:\Users\Davi\Documents\Projetos\FIAP\FASE 7\Capitulo 1\documents\modelo_anomalia_sensores.pkl'
+CAMINHO_MODELO = r'C:\Users\Davi\Documents\Projetos\FIAP\FASE 7\Capitulo 1\config\modelo_anomalia_sensores.pkl'
 
 # --- ETAPA 3: TESTANDO COM DADOS FALSOS ---
 print("\n--- ETAPA 3: HORA DA VERDADE (TESTE DE PREVISÃO) ---")
