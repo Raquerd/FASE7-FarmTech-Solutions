@@ -18,5 +18,5 @@ modelo_anomalia = IsolationForest(n_estimators=200, contamination=0.1, random_st
 modelo_anomalia.fit(df.values)
 
 # 3. SALVAR
-joblib.dump(modelo_anomalia, r'C:\Users\Davi\Documents\Projetos\FIAP\FASE 7\Capitulo 1\documents\modelo_anomalia_sensores.pkl')
+joblib.dump(modelo_anomalia, r'C:\Users\Davi\Documents\Projetos\FIAP\FASE 7\Capitulo 1\config\modelo_anomalia_sensores.pkl')
 print("Modelo de anomalia salvo!")
